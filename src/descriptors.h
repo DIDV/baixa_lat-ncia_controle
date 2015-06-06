@@ -128,7 +128,7 @@ ROMPTR const unsigned char cdc_config_descriptor[] = {
 ROM const unsigned char cdc_str_descs[] = {
         /* 0 */                  4, USB_STRING_DESCRIPTOR_TYPE, LOWB(USB_LANGID_English_United_States), HIGHB(USB_LANGID_English_United_States),
         /* USB_iManufacturer */ // 42, USB_STRING_DESCRIPTOR_TYPE, 'D',0,'a',0,'n',0,'g',0,'e',0,'r',0,'o',0,'u',0,'s',0,' ',0,'P',0,'r',0,'o',0,'t',0,'o',0,'t',0,'y',0,'p',0,'e',0,'s',0,
-                                 38, USB_STRING_DESCRIPTOR_TYPE, 'D',0,'I',0,'D',0,'V',0,' ',0,'L',0,'i',0,'n',0,'h',0,'a',0,' ',0,'B',0,'r',0,'a',0,'i',0,'l',0,'l',0,'e',0,
+                                 38, USB_STRING_DESCRIPTOR_TYPE, 'D',0,'I',0,'D',0,'V',0,' ',0,'C',0,'o',0,'n',0,'t',0,'r',0,'o',0,'l',0,'e',0,' ',0,' ',0,' ',0,' ',0,' ',0,
         /* USB_iProduct */      10, USB_STRING_DESCRIPTOR_TYPE, 'C',0,'D',0,'C',0,' ',0,
         /* USB_iSerialNum */    18, USB_STRING_DESCRIPTOR_TYPE, '0',0,'0',0,'0',0,'0',0,'0',0,'0',0,'0',0,'1',0
 };

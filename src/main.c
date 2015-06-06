@@ -3,6 +3,7 @@
 #include "usb_functions.h"
 #include <adc.h>
 #include <pwm.h>
+#include <math.h>
 
 unsigned short contador = 0;            //Variável para piscar um LED (RD2)
 unsigned short sinal = 0;               //Variável que indica o status do LED (RD2)
@@ -11,7 +12,6 @@ int processa_controle( char controle );
 char recebe_dado_usb();
 void config_pic();
 unsigned short sensor_corrente_6v();
-void limpa();
 unsigned short sensor_temperatura_1();
 unsigned short sensor_temperatura_2();
 unsigned short sensor_temperatura_3();
@@ -32,7 +32,7 @@ void high_isr(void)                 // Rotina para tratamento de interrupção;
 {
     sensor_corrente_6v();           //Rotina para medição de corrente;
     aciona_cooler();                //Rotina para medições de temperatura;
-    if(contador == 10)              //Rotina para piscar um LED (RD2), informando que esta tudo certo;
+    if(contador == 10)              //Rotina para piscar um LED (RD2), informando que esta ocorrendo interrupções e conseguentimente, monitoramento;
     {
         if(sinal == 1)
         {
@@ -72,7 +72,8 @@ void main(void)
     char byte_recebido;
     config_pic();                       // Configurações iniciais do PIC (Ports, etc.);
     usb_install();                      // Inicialização do USB;
-    
+    Delay_ms(100);                     // Atraso adicionado para garantir que os sensores tenham sido alimentados antes do primeiro monitoramento;
+
     do
     {
         byte_recebido = recebe_dado_usb();  // Recebe os dados vindos da rasp;
@@ -121,12 +122,6 @@ int processa_controle( char controle )
     {
         case 0x30:              //Caracter '0' ou 0x30 - Processo de teste de comunicação;
             putc_cdc('O');
-            //putc_cdc('k');
-            //putc_cdc(' ');
-            break;
-
-        case 0x5F:              //Caracter '_' ou 0x5F - Limpa a linha do display;
-            limpa();
             break;
 
         case 0x31:              //Caracter '1' ou 0x31 - Converte a corrente em hexa para informar a raspberry;
@@ -145,12 +140,12 @@ int processa_controle( char controle )
             converte_temperatura('3');
             break;
 
+        case 0x39:              // Caracter '9' ou 0x39 - Reseta pino SD, apenas para funções de teste do software. No projeto real, quando SD for acionado todo sistema será desalimentado, desligando tudo;
+            PORTDbits.RD4 = 0;
+            break;
+            
         default:                // Não faz nada e retorna para receber proximo controle;
             putc_cdc('N');
-            //putc_cdc('o');
-            //putc_cdc('p');
-            //putc_cdc(' ');
-
     }
     return 1;
 }
@@ -199,16 +194,6 @@ void config_pic(void)
     SSPCON1bits.SSPEN = 1;
 }
 
-void limpa(void)
-{
-    unsigned short i = 0;
-    while(i<80)
-    {
-        putc_cdc(' ');
-        i++;
-    }
-}
-
 //Sensor de corrente
 unsigned short sensor_corrente_6v(void)       //AN_6V_
 {
@@ -217,13 +202,9 @@ unsigned short sensor_corrente_6v(void)       //AN_6V_
     ConvertADC();                   //Inicia conversão ADC
     while(BusyADC());               // Aguarda a finalização da conversão
     tensao = ReadADC();             //Guarda a informação obtida da conversão
-    if((tensao < 450) || (tensao > 757))    // Fora do padrão de 0 a 25A
+    if((tensao < 430) || (tensao > 900))    // Fora do padrão de 0A a 24A
     {
         PORTDbits.RD4 = 1;          //Desliga totalmente o DIDV através do pino SD;
-    }
-    else
-    {
-        PORTDbits.RD4 = 0;      //Este ELSE pode ser removido após os testes, pois depois que desligar todo o sistema obviamente não podera retornar;
     }
     return tensao;
 }
@@ -238,9 +219,13 @@ void aciona_cooler(void)
 
     while(contar<3)
     {
-        if(liga[contar] > 634)                        // Aciona para temperaturas acima de 30º (3,4V) Após filtro-> 3,1V - (3,1/5)*1023 = 634
+        if(liga[contar] > 225)              // Para temperaturas acima de Xº (1,1V). Após filtro -> 1V -> (1/5*1023 = 205
         {
-             liga[contar] = 1;
+            PORTDbits.RD4 = 1;              // Desliga totalmente o DIDV através do pino SD;
+        }
+        else if(liga[contar] > 143)         // Aciona cooler para temperaturas acima de Xº (700mV) Após filtro-> 636mV - (0,636/5)*1023 = 130;
+        {
+             liga[contar] = 1;              // Seta bit de acionamento de cooler;
         }
         else
         {
@@ -251,11 +236,13 @@ void aciona_cooler(void)
 
     if((liga[0] + liga[1] + liga[2]) > 0)
     {
-        PORTCbits.RC2 = 1;                  //RC2 - Aciona Cooler
+        PORTCbits.RC2 = 1;                  // RC2 - Aciona Cooler
+        PORTDbits.RD3 = 1;                  // RD3 - Aciona LED de indicação de Cooler
     }
     else
     {
-        PORTCbits.RC2 = 0;                  //RC2 - Desliga cooler
+        PORTCbits.RC2 = 0;                  // RC2 - Desliga cooler
+        PORTDbits.RD3 = 0;                  // RD3 - Desliga LED de indicação de Cooler
     }
 }
 
@@ -264,9 +251,9 @@ unsigned short sensor_temperatura_1(void)             //TS1_
 {
     unsigned short tensao;                  // Armazena o valor da conversão ADC feita;
     SetChanADC(ADC_CH4);                    // Seta o canal analógico 4 (AN4) no qual verifica a existencia ou não de expansão por um divisor de tensão
-    ConvertADC();                           //Inicia conversão ADC
+    ConvertADC();                           // Inicia conversão ADC
     while(BusyADC());                       // Aguarda a finalização da conversão
-    tensao = ReadADC();                     //Guarda a informação obtida da conversão
+    tensao = ReadADC();                     // Guarda a informação obtida da conversão
     return tensao;
 }
 
